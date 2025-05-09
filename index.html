@@ -1,0 +1,482 @@
+<!-- <!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Подбор шестерён дифференциала</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f5f7fa;
+      padding: 20px;
+      margin: 0;
+      color: #333;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #2c3e50;
+    }
+
+    label {
+      margin-bottom: 10px;
+      font-weight: 500;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #2980b9;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      margin-top: 20px;
+    }
+
+    .table-wrapper table {
+      min-width: 100%;
+      border-collapse: collapse;
+      font-size: 15px;
+    }
+
+    th, td {
+      padding: 8px 6px;
+      border: 1px solid #ddd;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    th {
+      background-color: #ecf0f1;
+    }
+
+    #results p {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+
+    @media (max-width: 600px) {
+      th, td {
+        padding: 6px 4px;
+        font-size: 13px;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Подбор шестерён дифференциала</h1>
+
+    <div class="form-group">
+      <label>Число зубьев заготовки (Z):</label>
+      <input id="z" type="number" value="80">
+    </div>
+
+    <div class="form-group">
+      <label>Число заходов фрезы (Zf):</label>
+      <input id="zf" type="number" value="1">
+    </div>
+
+    <div class="form-group">
+      <label>Угол наклона зуба (a, в градусах):</label>
+      <input id="a" type="number" value="15">
+    </div>
+
+    <div class="form-group">
+      <label>Число заходов червяка (N):</label>
+      <input id="n" type="number" value="1">
+    </div>
+
+    <div class="form-group">
+      <label>Модуль (M):</label>
+      <input id="m" type="number" value="2" step="0.01">
+    </div>
+
+    <button onclick="calculate()">Рассчитать</button>
+
+    <div id="results"></div>
+  </div>
+
+  <script>
+    function toRadians(deg) {
+      return deg * (Math.PI / 180);
+    }
+
+    function calcK(Z, Zf) {
+      return Z / Zf;
+    }
+
+    function calcTargetRatio(Z, Zf, a_deg, N, M) {
+      const a_rad = toRadians(a_deg);
+      const K = calcK(Z, Zf);
+      return (K * Math.sin(a_rad)) / (N * M);
+    }
+
+    function findGearCombinations(i_target, minTeeth = 20, maxTeeth = 127, initialTolerance = 0.0001, maxTolerance = 0.01) {
+      let tolerance = initialTolerance;
+      let results = [];
+
+      while (results.length === 0 && tolerance <= maxTolerance) {
+        for (let A = minTeeth; A <= maxTeeth; A++) {
+          for (let B = minTeeth; B <= maxTeeth; B++) {
+            for (let C = minTeeth; C <= maxTeeth; C++) {
+              for (let D = minTeeth; D <= maxTeeth; D++) {
+                const ratio = (A * C) / (B * D);
+                const delta = Math.abs(ratio - i_target);
+                if (delta <= tolerance) {
+                  results.push({ A, B, C, D, ratio: ratio.toFixed(6), delta: delta.toFixed(6) });
+                }
+              }
+            }
+          }
+        }
+        if (results.length === 0) tolerance *= 2;
+      }
+
+      return results.sort((a, b) => a.delta - b.delta);
+    }
+
+    function calculate() {
+      const Z = parseFloat(document.getElementById('z').value);
+      const Zf = parseFloat(document.getElementById('zf').value);
+      const a = parseFloat(document.getElementById('a').value);
+      const N = parseFloat(document.getElementById('n').value);
+      const M = parseFloat(document.getElementById('m').value);
+
+      const i_target = calcTargetRatio(Z, Zf, a, N, M);
+      const results = findGearCombinations(i_target);
+
+      let html = `<p><strong>Целевое передаточное отношение i = ${i_target.toFixed(6)}</strong></p>`;
+      if (results.length === 0) {
+        html += '<p>Нет подходящих комбинаций в пределах допустимой погрешности.</p>';
+      } else {
+        html += `<div class="table-wrapper"><table><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th><th>i</th><th>Δ</th></tr></thead><tbody>`;
+        results.slice(0, 20).forEach(r => {
+          html += `<tr><td>${r.A}</td><td>${r.B}</td><td>${r.C}</td><td>${r.D}</td><td>${r.ratio}</td><td>${r.delta}</td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+      }
+
+      document.getElementById('results').innerHTML = html;
+    }
+  </script>
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Калькуляторы шестерён</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="manifest" href="manifest.json" />
+        <meta name="theme-color" content="#3498db" />
+        <style>
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: "Segoe UI", sans-serif;
+                background: #f5f7fa;
+                padding: 20px;
+                margin: 0;
+                color: #333;
+            }
+
+            .container {
+                max-width: 800px;
+                margin: auto;
+                background: white;
+                padding: 20px;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            }
+
+            .tab-buttons {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 20px;
+                flex-wrap: wrap;
+            }
+
+            .tab-buttons button {
+                flex: 1;
+                padding: 12px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                cursor: pointer;
+                transition: background 0.3s ease;
+            }
+
+            .tab-buttons button.active {
+                background-color: #2980b9;
+            }
+
+            h1 {
+                text-align: center;
+                margin-bottom: 20px;
+                color: #2c3e50;
+            }
+
+            .form-group {
+                margin-bottom: 15px;
+            }
+
+            label {
+                display: block;
+                margin-bottom: 5px;
+                font-weight: 500;
+            }
+
+            input[type="number"] {
+                width: 100%;
+                padding: 10px;
+                border-radius: 6px;
+                border: 1px solid #ccc;
+            }
+
+            button.calc {
+                background-color: #2ecc71;
+                margin-top: 10px;
+                padding: 10px 15px;
+                font-size: 16px;
+            }
+
+            .table-wrapper {
+                overflow-x: auto;
+                margin-top: 20px;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 15px;
+            }
+
+            th,
+            td {
+                padding: 8px;
+                border: 1px solid #ddd;
+                text-align: center;
+            }
+
+            th {
+                background-color: #ecf0f1;
+            }
+
+            #result,
+            #results p {
+                margin-top: 20px;
+                font-size: 16px;
+            }
+
+            @media (max-width: 600px) {
+                .tab-buttons button {
+                    font-size: 14px;
+                    padding: 10px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Калькуляторы шестерён</h1>
+
+            <div class="tab-buttons">
+                <button class="active" onclick="showTab('app1', this)">Подбор шестерён</button>
+                <button onclick="showTab('app2', this)">Шестерня по расстоянию</button>
+            </div>
+
+            <!-- Первый калькулятор -->
+            <div id="app1">
+                <div class="form-group">
+                    <label>Число зубьев заготовки (Z):</label>
+                    <input id="z" type="number" value="80" />
+                </div>
+
+                <div class="form-group">
+                    <label>Число заходов фрезы (Zf):</label>
+                    <input id="zf" type="number" value="1" />
+                </div>
+
+                <div class="form-group">
+                    <label>Угол наклона зуба (a, в градусах):</label>
+                    <input id="a" type="number" value="15" />
+                </div>
+
+                <div class="form-group">
+                    <label>Число заходов червяка (N):</label>
+                    <input id="n" type="number" value="1" />
+                </div>
+
+                <div class="form-group">
+                    <label>Модуль (M):</label>
+                    <input id="m" type="number" value="2" step="0.01" />
+                </div>
+
+                <button class="calc" onclick="calculateGear()">Рассчитать</button>
+
+                <div id="results"></div>
+            </div>
+
+            <!-- Второй калькулятор -->
+            <div id="app2" style="display: none">
+                <div class="form-group">
+                    <label>Межосевое расстояние A (мм):</label>
+                    <input type="number" id="a2" value="60" step="0.01" />
+                </div>
+
+                <div class="form-group">
+                    <label>Ат. число первой шестерни Z₁:</label>
+                    <input type="number" id="z1" value="20" />
+                </div>
+
+                <div class="form-group">
+                    <label>Модуль m (мм):</label>
+                    <input type="number" id="m2" value="2" step="0.01" />
+                </div>
+
+                <button class="calc" onclick="calculateDistance()">Рассчитать</button>
+
+                <div id="result"></div>
+            </div>
+        </div>
+
+        <script>
+            function toRadians(deg) {
+                return deg * (Math.PI / 180);
+            }
+
+            function calcK(Z, Zf) {
+                return Z / Zf;
+            }
+
+            function calcTargetRatio(Z, Zf, a_deg, N, M) {
+                const a_rad = toRadians(a_deg);
+                const K = calcK(Z, Zf);
+                return (K * Math.sin(a_rad)) / (N * M);
+            }
+
+            function findGearCombinations(i_target, minTeeth = 20, maxTeeth = 127, initialTolerance = 0.0001, maxTolerance = 0.01) {
+                let tolerance = initialTolerance;
+                let results = [];
+
+                while (results.length === 0 && tolerance <= maxTolerance) {
+                    for (let A = minTeeth; A <= maxTeeth; A++) {
+                        for (let B = minTeeth; B <= maxTeeth; B++) {
+                            for (let C = minTeeth; C <= maxTeeth; C++) {
+                                for (let D = minTeeth; D <= maxTeeth; D++) {
+                                    const ratio = (A * C) / (B * D);
+                                    const delta = Math.abs(ratio - i_target);
+                                    if (delta <= tolerance) {
+                                        results.push({ A, B, C, D, ratio: ratio.toFixed(6), delta: delta.toFixed(6) });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (results.length === 0) tolerance *= 2;
+                }
+
+                return results.sort((a, b) => a.delta - b.delta);
+            }
+
+            function calculateGear() {
+                const Z = parseFloat(document.getElementById("z").value);
+                const Zf = parseFloat(document.getElementById("zf").value);
+                const a = parseFloat(document.getElementById("a").value);
+                const N = parseFloat(document.getElementById("n").value);
+                const M = parseFloat(document.getElementById("m").value);
+
+                const i_target = calcTargetRatio(Z, Zf, a, N, M);
+                const results = findGearCombinations(i_target);
+
+                let html = `<p><strong>Целевое передаточное отношение i = ${i_target.toFixed(6)}</strong></p>`;
+                if (results.length === 0) {
+                    html += "<p>Нет подходящих комбинаций в пределах допустимой погрешности.</p>";
+                } else {
+                    html += `<div class="table-wrapper"><table><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th><th>i</th><th>Δ</th></tr></thead><tbody>`;
+                    results.slice(0, 20).forEach((r) => {
+                        html += `<tr><td>${r.A}</td><td>${r.B}</td><td>${r.C}</td><td>${r.D}</td><td>${r.ratio}</td><td>${r.delta}</td></tr>`;
+                    });
+                    html += `</tbody></table></div>`;
+                }
+
+                document.getElementById("results").innerHTML = html;
+            }
+
+            function calculateDistance() {
+                const A = parseFloat(document.getElementById("a2").value);
+                const Z1 = parseFloat(document.getElementById("z1").value);
+                const m = parseFloat(document.getElementById("m2").value);
+
+                const Z2 = (2 * A) / m - Z1;
+                const R2 = (m * Z2) / 2;
+
+                const result = Z2 >= 1 ? `Z₂ = ${Z2.toFixed(2)}, R₂ = ${R2.toFixed(2)} мм` : `Ошибка: Z₂ < 1. Попробуйте другие значения.`;
+
+                document.getElementById("result").innerText = result;
+            }
+
+            function showTab(id, button) {
+                document.getElementById("app1").style.display = "none";
+                document.getElementById("app2").style.display = "none";
+                document.getElementById(id).style.display = "block";
+
+                document.querySelectorAll(".tab-buttons button").forEach((btn) => btn.classList.remove("active"));
+                button.classList.add("active");
+            }
+
+            if ("serviceWorker" in navigator) {
+                navigator.serviceWorker
+                    .register("./sw.js")
+                    .then(() => console.log("✅ Service Worker зарегистрирован"))
+                    .catch((err) => console.error("❌ Ошибка Service Worker", err));
+            }
+        </script>
+    </body>
+</html>
